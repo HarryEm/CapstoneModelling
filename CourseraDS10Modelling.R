@@ -1,7 +1,14 @@
+# The most important thing I've learned from this exercise to take the opposite approach of what you
+# want to. Instead of trying to load all the data in and get a really polished model from the outset,
+# I started by seeing how little data and how basic a model I could get to come up with some kind
+# of prediction, even if it performed very poorly. Once the structure is in place the refinements
+# come far more easily.
+
 # Load libraries
 library(tm)
 library(quanteda)
 library(readtext)
+library(dplyr)
 
 # Load in data
 
@@ -60,3 +67,49 @@ corp <- tm_map(corp, PlainTextDocument)
 
 mytf <- readtext("./JHU_Capstone/Data/Samples/*.txt")
 qcorp <- corpus(mytf) # in one step?
+
+qcorp <- corpus(readtext("./JHU_Capstone/Data/Samples/"))
+
+ngram1 <- tokenize(qcorp, what = "word",remove_numbers = TRUE, remove_punct = TRUE, 
+                   remove_symbols = TRUE, remove_twitter = TRUE, remove_hyphens = TRUE, 
+                   remove_url = TRUE, simplify = TRUE, ngrams = 1 ,verbose=TRUE)
+
+ngram2 <- tokenize(qcorp, what = "word",remove_numbers = TRUE, remove_punct = TRUE, 
+                   remove_symbols = TRUE, remove_twitter = TRUE, remove_hyphens = TRUE, 
+                   remove_url = TRUE, simplify = TRUE, ngrams = 2 ,verbose=TRUE)
+
+ngram3 <- tokenize(qcorp, what = "word",remove_numbers = TRUE, remove_punct = TRUE, 
+                   remove_symbols = TRUE, remove_twitter = TRUE, remove_hyphens = TRUE, 
+                   remove_url = TRUE, simplify = TRUE, ngrams = 3 ,verbose=TRUE)
+
+# https://www.rdocumentation.org/packages/quanteda/versions/0.99.12/topics/tokenize
+
+dfm1 <- dfm(ngram1, tolower = TRUE, stem = FALSE, select = NULL, remove = NULL,
+            dictionary = NULL)
+
+dfm2 <- dfm(ngram2, tolower = TRUE, stem = FALSE, select = NULL, remove = NULL,
+            dictionary = NULL)
+
+dfm3 <- dfm(ngram3, tolower = TRUE, stem = FALSE, select = NULL, remove = NULL,
+            dictionary = NULL)
+
+df1 <- data.frame(Content = features(dfm1), Frequency = colSums(dfm1), 
+                 row.names = NULL, stringsAsFactors = FALSE)
+
+df2 <- data.frame(Content = features(dfm2), Frequency = colSums(dfm2), 
+                  row.names = NULL, stringsAsFactors = FALSE)
+
+df3 <- data.frame(Content = features(dfm3), Frequency = colSums(dfm3), 
+                  row.names = NULL, stringsAsFactors = FALSE)
+
+strsplit("it's_been_a", "_(?=[^_]+$)", perl=TRUE)
+df2a <- data.frame(do.call('rbind', strsplit(as.character(df2$Content), "_(?=[^_]+$)", perl=TRUE)),df2$Frequency)
+df3a <- data.frame(do.call('rbind', strsplit(as.character(df3$Content), "_(?=[^_]+$)", perl=TRUE)),df3$Frequency)
+
+prediciton <- as.character(df2a[df2a$X1=="it's",][which.max(df2a[df2a$X1=="it's",]$df2.Frequency),2])
+
+predict_word <- function(txt) {
+  prediciton <- as.character(df2a[df2a$X1==txt,][which.max(df2a[df2a$X1==txt,]$df2.Frequency),2])
+  return(prediciton)
+}
+
