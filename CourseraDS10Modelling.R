@@ -9,8 +9,11 @@ library(tm)
 library(quanteda)
 library(readtext)
 library(dplyr)
+library(parallel)
 
 # Load in data
+
+no_cores <- detectCores() - 1
 
 if(!dir.exists("./JHU_Capstone/Data")) {
   dir.create("./JHU_Capstone/Data")}
@@ -54,43 +57,36 @@ textSample("./Data/final/en_US/en_US.blogs.txt","./JHU_Capstone/Data/Samples/en_
 
 # Preprocesing Data
 
-corp <- VCorpus(DirSource("./JHU_Capstone/Data/Samples"),readerControl = list(language="en_US"))
-
-corp <- tm_map(corp, content_transformer(tolower)) #converts to lower case
-corp <- tm_map(corp, stripWhitespace) # removes superfluous white space
-corp <- tm_map(corp, stemDocument) # perform stemming so misspelt words are corrected - what happens if I don't do this??
-corp <- tm_map(corp, removePunctuation) #removes punctuation, how about words like "New-York", "I'm", "m.p.h."?
-corp <- tm_map(corp, removeNumbers) #removes numbers
-# corp <- tm_map(corp, removeWords, stopwords("english")) we lose some of the analysis here
-corp <- tm_map(corp, PlainTextDocument)
-
-
-mytf <- readtext("./JHU_Capstone/Data/Samples/*.txt")
-qcorp <- corpus(mytf) # in one step?
-
 qcorp <- corpus(readtext("./JHU_Capstone/Data/Samples/"))
 
 ngram1 <- tokenize(qcorp, what = "word",remove_numbers = TRUE, remove_punct = TRUE, 
                    remove_symbols = TRUE, remove_twitter = TRUE, remove_hyphens = TRUE, 
-                   remove_url = TRUE, simplify = TRUE, ngrams = 1 ,verbose=TRUE)
+                   remove_url = TRUE, simplify = TRUE, skip = 1, ngrams = 1 ,verbose=TRUE)
 
 ngram2 <- tokenize(qcorp, what = "word",remove_numbers = TRUE, remove_punct = TRUE, 
                    remove_symbols = TRUE, remove_twitter = TRUE, remove_hyphens = TRUE, 
-                   remove_url = TRUE, simplify = TRUE, ngrams = 2 ,verbose=TRUE)
+                   remove_url = TRUE, simplify = TRUE, skip = 1,  ngrams = 2 ,verbose=TRUE)
 
 ngram3 <- tokenize(qcorp, what = "word",remove_numbers = TRUE, remove_punct = TRUE, 
                    remove_symbols = TRUE, remove_twitter = TRUE, remove_hyphens = TRUE, 
-                   remove_url = TRUE, simplify = TRUE, ngrams = 3 ,verbose=TRUE)
+                   remove_url = TRUE, simplify = TRUE, skip = 1,  ngrams = 3 ,verbose=TRUE)
+
+ngram4 <- tokenize(qcorp, what = "word",remove_numbers = TRUE, remove_punct = TRUE, 
+                   remove_symbols = TRUE, remove_twitter = TRUE, remove_hyphens = TRUE, 
+                   remove_url = TRUE, simplify = TRUE, skip = 1,  ngrams = 4 ,verbose=TRUE)
 
 # https://www.rdocumentation.org/packages/quanteda/versions/0.99.12/topics/tokenize
 
-dfm1 <- dfm(ngram1, tolower = TRUE, stem = FALSE, select = NULL, remove = NULL,
+dfm1 <- dfm(ngram1, tolower = TRUE, stem = TRUE, select = NULL, remove = NULL,
             dictionary = NULL)
 
-dfm2 <- dfm(ngram2, tolower = TRUE, stem = FALSE, select = NULL, remove = NULL,
+dfm2 <- dfm(ngram2, tolower = TRUE, stem = TRUE, select = NULL, remove = NULL,
             dictionary = NULL)
 
-dfm3 <- dfm(ngram3, tolower = TRUE, stem = FALSE, select = NULL, remove = NULL,
+dfm3 <- dfm(ngram3, tolower = TRUE, stem = TRUE, select = NULL, remove = NULL,
+            dictionary = NULL)
+
+dfm4 <- dfm(ngram4, tolower = TRUE, stem = TRUE, select = NULL, remove = NULL,
             dictionary = NULL)
 
 df1 <- data.frame(Content = features(dfm1), Frequency = colSums(dfm1), 
@@ -102,14 +98,30 @@ df2 <- data.frame(Content = features(dfm2), Frequency = colSums(dfm2),
 df3 <- data.frame(Content = features(dfm3), Frequency = colSums(dfm3), 
                   row.names = NULL, stringsAsFactors = FALSE)
 
-strsplit("it's_been_a", "_(?=[^_]+$)", perl=TRUE)
-df2a <- data.frame(do.call('rbind', strsplit(as.character(df2$Content), "_(?=[^_]+$)", perl=TRUE)),df2$Frequency)
-df3a <- data.frame(do.call('rbind', strsplit(as.character(df3$Content), "_(?=[^_]+$)", perl=TRUE)),df3$Frequency)
+df4 <- data.frame(Content = features(dfm4), Frequency = colSums(dfm4), 
+                  row.names = NULL, stringsAsFactors = FALSE)
 
-prediciton <- as.character(df2a[df2a$X1=="it's",][which.max(df2a[df2a$X1=="it's",]$df2.Frequency),2])
+df2 <- data.frame(do.call('rbind', strsplit(as.character(df2$Content), "_(?=[^_]+$)", perl=TRUE)),df2$Frequency)
+df3 <- data.frame(do.call('rbind', strsplit(as.character(df3$Content), "_(?=[^_]+$)", perl=TRUE)),df3$Frequency)
+df4 <- data.frame(do.call('rbind', strsplit(as.character(df4$Content), "_(?=[^_]+$)", perl=TRUE)),df4$Frequency)
 
-predict_word <- function(txt) {
-  prediciton <- as.character(df2a[df2a$X1==txt,][which.max(df2a[df2a$X1==txt,]$df2.Frequency),2])
+prediciton <- as.character(df2[df2$X1=="it's",][which.max(df2[df2$X1=="it's",]$df2.Frequency),2])
+
+predict_word3 <- function(txt) {
+  prediciton <- as.character(df3[df3$X1==txt,][which.max(df3[df3$X1==txt,]$df3.Frequency),2])
   return(prediciton)
 }
+
+predict_word4 <- function(txt) {
+  prediciton <- as.character(df4[df4$X1==txt,][which.max(df4[df4$X1==txt,]$df4.Frequency),2])
+  return(prediciton)
+}
+
+x <- "faith during the"
+
+linestiwtter[grep(x,linestiwtter)]
+linesnews[grep(x,linesnews)]
+linesblogs[grep(x,linesblogs)]
+
+
 
