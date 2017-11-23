@@ -5,15 +5,26 @@
 # come far more easily.
 
 # Load libraries
-library(tm)
+#library(tm)
 library(quanteda)
 library(readtext)
 library(dplyr)
-library(parallel)
+library(doParallel)
+library(data.table)
 
-# Load in data
+# Acticate parallel computing
 
 no_cores <- detectCores() - 1
+
+parallelFn <- function(fn, ...){
+  cl <- makeCluster(no_cores)
+  registerDoParallel(cl)
+  f <- fn(...)
+  stopCluster(cl)
+  f
+}
+
+# Load in data
 
 if(!dir.exists("./JHU_Capstone/Data")) {
   dir.create("./JHU_Capstone/Data")}
@@ -59,9 +70,43 @@ textSample("./Data/final/en_US/en_US.blogs.txt","./JHU_Capstone/Data/Samples/en_
 
 qcorp <- corpus(readtext("./JHU_Capstone/Data/Samples/"))
 
+## compare tokenizing using parallel computing on my 7 cores
+
+system.time(tokenize(qcorp, what = "word",remove_numbers = TRUE, remove_punct = TRUE, 
+                     remove_symbols = TRUE, remove_twitter = TRUE, remove_hyphens = TRUE, 
+                     remove_url = TRUE, simplify = TRUE, skip = 1, ngrams = 1 ,verbose=TRUE))
+
+system.time(parallelFn(tokenize(qcorp, what = "word",remove_numbers = TRUE, remove_punct = TRUE, 
+                     remove_symbols = TRUE, remove_twitter = TRUE, remove_hyphens = TRUE, 
+                     remove_url = TRUE, simplify = TRUE, skip = 1, ngrams = 1 ,verbose=TRUE)))
+
+## consider putting the whole thing in a function so objects not retained in memory
+
+ngramdf <- function(corpus,n){
+  
+  ngramn <- tokenize(corpus, what = "word",remove_numbers = TRUE, remove_punct = TRUE, 
+                     remove_symbols = TRUE, remove_twitter = TRUE, remove_hyphens = TRUE, 
+                     remove_url = TRUE, simplify = TRUE, skip = 1, ngrams = n ,verbose=TRUE)
+  
+  dfmn <- dfm(ngramn, tolower = TRUE, stem = FALSE, select = NULL, remove = NULL,
+              dictionary = NULL)
+  
+  #dfmn <- dfm_trim(dfmn, min_count=3)
+  
+  dfn <- data.table(Content = featnames(dfmn), Frequency = colSums(dfmn), 
+                    keep.rownames = NULL, stringsAsFactors = FALSE)
+  
+  dfn
+  
+}
+
 ngram1 <- tokenize(qcorp, what = "word",remove_numbers = TRUE, remove_punct = TRUE, 
                    remove_symbols = TRUE, remove_twitter = TRUE, remove_hyphens = TRUE, 
                    remove_url = TRUE, simplify = TRUE, skip = 1, ngrams = 1 ,verbose=TRUE)
+
+dfm1 <- dfm(ngram1, tolower = TRUE, stem = TRUE, select = NULL, remove = NULL,
+            dictionary = NULL)
+
 
 ngram2 <- tokenize(qcorp, what = "word",remove_numbers = TRUE, remove_punct = TRUE, 
                    remove_symbols = TRUE, remove_twitter = TRUE, remove_hyphens = TRUE, 
@@ -77,8 +122,14 @@ ngram4 <- tokenize(qcorp, what = "word",remove_numbers = TRUE, remove_punct = TR
 
 # https://www.rdocumentation.org/packages/quanteda/versions/0.99.12/topics/tokenize
 
-dfm1 <- dfm(ngram1, tolower = TRUE, stem = TRUE, select = NULL, remove = NULL,
-            dictionary = NULL)
+system.time(dfm(ngram2, tolower = TRUE, stem = TRUE, select = NULL, remove = NULL,
+            dictionary = NULL))
+
+system.time(parallelFn(dfm, ngram2, tolower = TRUE, stem = TRUE, select = NULL, remove = NULL,
+                dictionary = NULL))
+
+
+
 
 dfm2 <- dfm(ngram2, tolower = TRUE, stem = TRUE, select = NULL, remove = NULL,
             dictionary = NULL)
@@ -101,9 +152,16 @@ df3 <- data.frame(Content = features(dfm3), Frequency = colSums(dfm3),
 df4 <- data.frame(Content = features(dfm4), Frequency = colSums(dfm4), 
                   row.names = NULL, stringsAsFactors = FALSE)
 
+system.time(df1 <- ngramdf(qcorp,1))
+system.time(df2 <- ngramdf(qcorp,2))
+system.time(df3 <- ngramdf(qcorp,3))
+system.time(df4 <- ngramdf(qcorp,4))
+
 df2 <- data.frame(do.call('rbind', strsplit(as.character(df2$Content), "_(?=[^_]+$)", perl=TRUE)),df2$Frequency)
 df3 <- data.frame(do.call('rbind', strsplit(as.character(df3$Content), "_(?=[^_]+$)", perl=TRUE)),df3$Frequency)
 df4 <- data.frame(do.call('rbind', strsplit(as.character(df4$Content), "_(?=[^_]+$)", perl=TRUE)),df4$Frequency)
+
+system.time(df1 <- ngramdf(qcorp,1))
 
 prediciton <- as.character(df2[df2$X1=="it's",][which.max(df2[df2$X1=="it's",]$df2.Frequency),2])
 
@@ -122,6 +180,16 @@ x <- "faith during the"
 linestiwtter[grep(x,linestiwtter)]
 linesnews[grep(x,linesnews)]
 linesblogs[grep(x,linesblogs)]
+
+
+# Performance
+
+sort( sapply(ls(),function(x){object.size(get(x))})) 
+
+rm(list=setdiff(ls(), c("dfm1","dfm2","dfm3","dfm4")))
+rm(list=ls())
+
+Rprof(ngramdf(qcorp,1))
 
 
 
